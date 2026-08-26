@@ -1,0 +1,7 @@
+{
+  "name": "deepseek-float-shell",
+  "productName": "DeepSeek Float",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js"
+}

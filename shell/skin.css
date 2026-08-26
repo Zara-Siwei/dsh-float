@@ -1,0 +1,316 @@
+/* DeepSeek Float — skin injected over the served dsh web SPA.
+   Two modes, switched by the ❖ button injected in preload.js:
+     * minimal (default, `html[data-float-minimal]`) — bare terminal TUI:
+       no sidebar/details/header/hero, a clean textarea + send, chat lines
+       left-aligned (user/agent differ by color only), and context shown as
+       plain `…/1M` text in the bottom stats bar.
+     * full (`html:not([data-float-minimal])`) — close to stock dsh web (kept
+       for configuring details), minus the empty-state whale + slogan.
+   Only colors/visibility change; every feature stays interactive. */
+
+/* ---- adjustable terminal ink + shadow (set by the ⚙ button in preload.js) ---- */
+:root {
+  --f-ink: #eaf2ff;                          /* user / input text color */
+  --f-accent: #5ee9a0;                       /* assistant answer text color */
+  --f-bg: transparent;                       /* minimal-mode root background */
+  --f-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); /* floating text shadow */
+}
+
+/* ---- transparency (minimal mode only: the terminal floats over the desktop) ---- */
+html[data-float-minimal],
+html[data-float-minimal] body {
+  background: transparent !important;
+}
+
+/* Soft shadow so floating text stays readable over any wallpaper. */
+html[data-float-minimal] [data-slot='conversation'],
+html[data-float-minimal] [data-composer-card] {
+  text-shadow: var(--f-shadow);
+}
+
+/* Minimal mode: the root background is user-configurable (color + opacity),
+   defaulting to transparent so only the terminal text floats over the desktop. */
+html[data-float-minimal] [data-slot='root'] > div {
+  background: var(--f-bg, transparent) !important;
+}
+
+/* Reserve the top 34px as a window title bar (drag strip + controls) in both
+   modes, so conversation content and the header never sit underneath the
+   pin/min/close/❖ buttons. */
+[data-slot='root'] > div {
+  padding-top: 34px !important;
+  box-sizing: border-box !important;
+}
+
+/* ---- terminal palette (green / white / monospace, minimal mode only) ---- */
+html[data-float-minimal] body {
+  --dsw-font-family: 'Ubuntu Mono', 'DejaVu Sans Mono', 'JetBrains Mono',
+    'Fira Code', Consolas, monospace !important;
+  --dsw-static-deepseek-500: #5ee9a0 !important;
+  --dsw-static-deepseek-450: #5ee9a0 !important;
+  --dsw-static-deepseek-400: #6ee7b7 !important;
+  --dsw-static-deepseek-300: #8fbcff !important;
+  --dsw-alias-label-primary: var(--f-ink) !important;
+  --dsw-alias-brand-primary: var(--f-ink) !important;
+  --dsw-alias-bg-base: transparent !important;
+  --dsw-alias-bg-layer-1: rgba(26, 34, 72, 0.15) !important;
+  --dsw-alias-bg-layer-2: rgba(30, 40, 84, 0.2) !important;
+  --dsw-specific-bubble: rgba(255, 255, 255, 0.05) !important;
+  --dsw-specific-sidebar-fill: transparent !important;
+}
+
+/* ---- chat flow colors ---- */
+html[data-float-minimal] [data-chat-flow-kind='user'] {
+  --dsw-alias-label-primary: var(--f-ink) !important;
+}
+html[data-float-minimal] [data-chat-flow-kind='assistant-step'] {
+  --dsw-alias-label-primary: var(--f-accent) !important;
+}
+html[data-float-minimal] [data-chat-flow-kind='steering'] {
+  --dsw-alias-label-primary: #8fbcff !important;
+}
+
+/* ---- empty-state hero brand removal (minimal mode only) ----
+   In hero phase the composer stack renders [1] the glow svg, [2] the whale +
+   "探索未至之境"/"预览版" headline, [3] the workspace row. Minimal drops 1+2
+   here (and 3 in the minimal section below); full mode keeps them all. */
+html[data-float-minimal] [data-phase='hero'] div:has(> [data-slot='conversation.composer.bar']) > :nth-child(1),
+html[data-float-minimal] [data-phase='hero'] div:has(> [data-slot='conversation.composer.bar']) > :nth-child(2) {
+  display: none !important;
+}
+
+/* ==========================================================================
+   MINIMAL MODE (default)
+   ========================================================================== */
+
+/* Collapse the sidebar + details tracks. Do NOT display:none the columns:
+   the center column would then auto-place into the first 0-width track and
+   the whole conversation (composer included) collapses to 0px wide. */
+html[data-float-minimal] [data-slot='root'] > div {
+  grid-template-columns: 0 minmax(0, 1fr) 0 !important;
+}
+
+/* Hide the now-pointless column drag handles. */
+html[data-float-minimal] [data-slot='root'] > div > [data-side] {
+  display: none !important;
+}
+
+/* Hide the conversation header (session title / tabs / actions / utilities). */
+html[data-float-minimal] [data-slot='conversation.session.header'] {
+  display: none !important;
+}
+
+/* Hide the empty-state workspace row. */
+html[data-float-minimal] [data-phase='hero'] div:has(> [data-slot='conversation.composer.bar']) > :nth-child(3) {
+  display: none !important;
+}
+
+/* Simplify the composer: drop the slash-command button + mode (access/permission)
+   selector (the "tools" group), the model selector, and the attachment slots.
+   Leaves a clean textarea + send (+ the injected `…/1M` context text). */
+html[data-float-minimal] div:has(> button[aria-label='命令']),
+html[data-float-minimal] div:has(> button[aria-label='Commands']) {
+  display: none !important;
+}
+html[data-float-minimal] [data-slot='conversation.input.model'] {
+  display: none !important;
+}
+html[data-float-minimal] [data-slot='conversation.input.left'],
+html[data-float-minimal] [data-slot='conversation.input.right'] {
+  display: none !important;
+}
+/* Full-width composer + chat column (terminal style). */
+html[data-float-minimal] [data-slot='conversation'] > div {
+  --dsh-chat-content-width: 100% !important;
+  --dsh-composer-card-max-width: 100% !important;
+}
+
+/* Hide the context ring (its data is shown as text in the bottom bar) and its
+   click-open panel — preload.js reads the panel headlessly. */
+html[data-float-minimal] button[aria-label^='上下文已用'],
+html[data-float-minimal] button[aria-label$=' of context used'] {
+  display: none !important;
+}
+html[data-float-minimal] [role='dialog'][aria-label='上下文已用'],
+html[data-float-minimal] [role='dialog'][aria-label='of context used'] {
+  display: none !important;
+}
+
+/* ---- TUI layout: dock the composer at the very bottom, single-line input. ---- */
+html[data-float-minimal] [data-phase='hero'] [data-conversation-scroll] {
+  justify-content: flex-end !important;
+}
+html[data-float-minimal] [class*='composerHero'] {
+  padding-bottom: 12px !important;
+}
+html[data-float-minimal] [data-composer-card] [class*='mirror'] {
+  min-height: 24px !important;
+}
+
+/* Composer = one prompt line:
+   - no visible box (fully transparent), just a white `>` prompt on the left;
+   - the textarea reserves a button-width slot on its right;
+   - the send/stop button is pinned to the right edge, vertically centered —
+     never below the input, no matter how many lines the text grows to.
+   Sizing lives in the two custom properties below, so a future resizeable
+   composer only has to change them. */
+html[data-float-minimal] [data-composer-card] {
+  --f-send-btn: 32px;                    /* send/stop button size */
+  --f-send-slot: calc(var(--f-send-btn) + 10px); /* button + gap */
+  position: relative !important;
+  padding-top: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+/* The textarea shrinks to leave the button slot on the right. */
+html[data-float-minimal] [data-input-scroll] {
+  padding-right: var(--f-send-slot) !important;
+}
+/* The card's button row: pinned to the right edge, vertically centered. */
+html[data-float-minimal] [data-composer-card] > div:has(> [class*='trailing']) {
+  position: absolute !important;
+  right: 0 !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: var(--f-send-btn) !important;
+  justify-content: flex-end !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+/* Collapse the trailing's own gap so hidden items add no phantom spacing. */
+html[data-float-minimal] [data-composer-card] [class*='trailing'] {
+  gap: 0 !important;
+}
+/* White `>` prompt. */
+html[data-float-minimal] [data-input-scroll] > div {
+  position: relative !important;
+}
+html[data-float-minimal] [data-input-scroll] > div::before {
+  content: '>';
+  position: absolute;
+  left: 0;
+  /* 4px = the composer's own text top-padding (InputBar .input/.mirror/.backdrop
+     `padding: 4px 12px 0 16px`), so the prompt's baseline sits on the first
+     input line instead of floating above it. */
+  top: 4px;
+  color: var(--f-ink);
+  font-family: var(--dsw-font-family);
+  font-size: 16px;
+  line-height: 24px;
+  pointer-events: none;
+}
+html[data-float-minimal] [data-input-backdrop],
+html[data-float-minimal] [data-composer-card] textarea,
+html[data-float-minimal] [data-input-mirror] {
+  padding-left: 18px !important;
+}
+
+/* Send button: premium-green rounded square. Stop button: same shape/slot,
+   warm-red to signal interruption. Both keep a glassy, transparent feel. */
+html[data-float-minimal] button[aria-label='发送消息'],
+html[data-float-minimal] button[aria-label='Send message'],
+html[data-float-minimal] button[aria-label='停止生成'],
+html[data-float-minimal] button[aria-label='Stop generating'] {
+  border-radius: 10px !important;
+  width: var(--f-send-btn) !important;
+  height: var(--f-send-btn) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+html[data-float-minimal] button[aria-label='发送消息'],
+html[data-float-minimal] button[aria-label='Send message'] {
+  background: rgba(94, 233, 160, 0.12) !important;
+  border: 1px solid rgba(94, 233, 160, 0.45) !important;
+  color: #5ee9a0 !important;
+}
+html[data-float-minimal] button[aria-label='发送消息']:hover:not(:disabled),
+html[data-float-minimal] button[aria-label='Send message']:hover:not(:disabled) {
+  background: rgba(94, 233, 160, 0.22) !important;
+}
+html[data-float-minimal] button[aria-label='发送消息']:disabled,
+html[data-float-minimal] button[aria-label='Send message']:disabled {
+  opacity: 0.35 !important;
+  color: rgba(94, 233, 160, 0.5) !important;
+  border-color: rgba(94, 233, 160, 0.2) !important;
+}
+html[data-float-minimal] button[aria-label='停止生成'],
+html[data-float-minimal] button[aria-label='Stop generating'] {
+  background: rgba(248, 113, 113, 0.14) !important;
+  border: 1px solid rgba(248, 113, 113, 0.45) !important;
+  color: #f87171 !important;
+}
+html[data-float-minimal] button[aria-label='停止生成']:hover,
+html[data-float-minimal] button[aria-label='Stop generating']:hover {
+  background: rgba(248, 113, 113, 0.24) !important;
+}
+
+/* ---- chat lines: left-align everything, drop the user bubble (TUI style).
+   User/agent are told apart by color only. ---- */
+html[data-float-minimal] [data-chat-flow-kind='user'] [class*='userRow'],
+html[data-float-minimal] [data-chat-flow-kind='user'] [class*='userStack'] {
+  align-items: flex-start !important;
+  align-self: flex-start !important;
+  max-width: 100% !important;
+}
+html[data-float-minimal] [data-chat-flow-kind='user'] [class*='bubble'] {
+  background: transparent !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+
+/* Secondary message meta (time + copy/branch actions): keep it always visible
+   and dim gray, like the context usage line. */
+html[data-float-minimal] [data-time-hover-root] [class*='timeStart'],
+html[data-float-minimal] [data-time-hover-root] [class*='timeEnd'] {
+  opacity: 1 !important;
+  color: var(--dsw-alias-label-caption) !important;
+}
+html[data-float-minimal] [data-time-hover-root] [class*='action'] {
+  color: var(--dsw-alias-label-caption) !important;
+}
+/* Unify the meta row order with the assistant: copy button first, then time.
+   (User messages render clock="start" → time first; reorder via flex order.) */
+html[data-float-minimal] [data-chat-flow-kind='user'] [class*='timeStart'],
+html[data-float-minimal] [data-chat-flow-kind='user'] [class*='timeEnd'] {
+  order: 2 !important;
+}
+html[data-float-minimal] [data-chat-flow-kind='user'] button[class*='action'] {
+  order: 1 !important;
+}
+
+/* The model's reasoning (Think) and tool output (bash/read/edit…) are "system"
+   text — gray them down so they don't read as bright as the user's speech. */
+html[data-float-minimal] [data-variant='think'],
+html[data-float-minimal] [data-chat-flow-kind='tool-call'] {
+  --dsw-alias-label-primary: #96a0b0 !important;
+  --dsw-alias-label-secondary: #96a0b0 !important;
+  --dsw-alias-label-tertiary: #96a0b0 !important;
+  color: #96a0b0 !important;
+}
+
+/* Hide the conversation scrollbar thumb until the mouse moves (preload.js toggles
+   the `f-scroll` class on <html>; it fades out again after a moment of idle). */
+html[data-float-minimal] [data-conversation-scroll]::-webkit-scrollbar {
+  width: 6px;
+}
+html[data-float-minimal] [data-conversation-scroll]::-webkit-scrollbar-thumb {
+  background: transparent !important;
+  border-radius: 3px;
+}
+html[data-float-minimal].f-scroll [data-conversation-scroll]::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+
+/* The plain context text injected by preload.js into the bottom stats bar. */
+.f-context-text {
+  font-family: var(--dsw-font-family);
+  font-size: 12px;
+  color: var(--dsw-alias-label-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.f-context-text::before {
+  content: ' · ';
+}

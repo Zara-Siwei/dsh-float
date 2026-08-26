@@ -1,0 +1,404 @@
+'use strict';
+
+const { contextBridge, ipcRenderer } = require('electron');
+
+/* Default to the minimal ("terminal TUI") look from the very first paint, so
+   the SPA never flashes its full chrome before the skin applies. */
+try {
+  if (document.documentElement) {
+    document.documentElement.setAttribute('data-float-minimal', '');
+  }
+} catch {}
+
+/* Earliest shell CSS, injected before any page script runs: hide the SPA's
+   white "Loading plugins…" boot page and force a transparent document, so the
+   float window can never flash white — even a frame rendered before the full
+   skin arrives via insertCSS. */
+try {
+  const style = document.createElement('style');
+  style.textContent = 'html[data-float-minimal],html[data-float-minimal] body{background:transparent!important}[data-dsh-boot]{display:none!important}';
+  (document.head || document.documentElement).appendChild(style);
+} catch {}
+
+let onMinimalChanged = () => {};
+
+/* Injected over the served SPA: a transparent drag strip (the frameless
+   window's title bar) + minimal window controls. React owns #root only, so
+   appending to <html> is never touched by re-renders. */
+function injectControls() {
+  const drag = document.createElement('div');
+  drag.style.cssText = 'position:fixed;top:0;left:0;right:0;height:34px;z-index:2147483646;-webkit-app-region:drag;';
+  document.documentElement.appendChild(drag);
+
+  const bar = document.createElement('div');
+  bar.style.cssText = 'position:fixed;top:6px;right:10px;z-index:2147483647;-webkit-app-region:no-drag;display:flex;align-items:center;gap:8px;font-family:monospace;';
+
+  // Collapsed to a breathing dot; the button row slides open on hover.
+  const menu = document.createElement('div');
+  menu.style.cssText = 'display:flex;gap:3px;overflow:hidden;max-width:0;min-width:0;opacity:0;transition:max-width .28s ease,opacity .28s ease;';
+  const base = 'width:26px;height:26px;flex:none;border:none;border-radius:6px;background:rgba(255,255,255,0.07);color:rgba(205,222,255,0.6);cursor:pointer;font-size:13px;line-height:1;transition:color .15s,background .15s;';
+  menu.innerHTML = [
+    '<button id="f-minimal" style="' + base + '">❖</button>',
+    '<button id="f-settings" style="' + base + '">⚙</button>',
+    '<button id="f-pin" style="' + base + '">↑</button>',
+    '<button id="f-min" style="' + base + '">–</button>',
+    '<button id="f-max" style="' + base + '">□</button>',
+    '<button id="f-close" style="' + base + '">✕</button>',
+  ].join('');
+
+  const dot = document.createElement('div');
+  dot.className = 'f-float-dot';
+  dot.style.cssText = 'flex:none;transition:opacity .28s ease;';
+
+  // Halo breathing light: a steady green core + a soft glow ring that expands
+  // and fades around it (the ::after pseudo-element, animated via keyframes).
+  const dotStyle = document.createElement('style');
+  dotStyle.textContent = '.f-float-dot{position:relative;width:8px;height:8px;border-radius:50%;background:#6ee7b7;box-shadow:0 0 6px 2px rgba(94,233,160,.55)}.f-float-dot::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(94,233,160,.6) 0%,rgba(94,233,160,0) 70%);animation:f-float-halo 2.2s ease-in-out infinite}@keyframes f-float-halo{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(3);opacity:1}}';
+  document.head.appendChild(dotStyle);
+
+  bar.append(menu, dot);
+  document.documentElement.appendChild(bar);
+
+  bar.addEventListener('mouseenter', () => { menu.style.maxWidth = '200px'; menu.style.opacity = '1'; dot.style.opacity = '0'; });
+  bar.addEventListener('mouseleave', () => { menu.style.maxWidth = '0'; menu.style.opacity = '0'; dot.style.opacity = '1'; });
+
+  // i18n: labels + tooltips follow the served SPA's active locale, which dsh
+  // web reflects on <html lang> (zh -> "zh-CN", en -> "en"). Registering a
+  // label applies it immediately and re-applies it whenever lang changes.
+  const I18N = {
+    zh: { minimal: '极简模式', toggleMinimal: '切换极简模式', settings: '设置', pin: '置顶', minimize: '最小化', maximize: '最大化', close: '关闭', inputText: '输入文字', answerText: '回答文字', bgColor: '背景颜色', opacity: '透明度', shadow: '文字阴影', reset: '恢复默认', custom: '自定义' },
+    en: { minimal: 'Minimal mode', toggleMinimal: 'Toggle minimal mode', settings: 'Settings', pin: 'Always on top', minimize: 'Minimize', maximize: 'Maximize', close: 'Close', inputText: 'Input text', answerText: 'Answer text', bgColor: 'Background', opacity: 'Opacity', shadow: 'Text shadow', reset: 'Reset', custom: 'Custom' },
+  };
+  const currentLang = () => ((document.documentElement.lang || '').toLowerCase().startsWith('zh') ? 'zh' : 'en');
+  const labels = [];
+  const setLabel = (el, key, attr) => {
+    const value = I18N[currentLang()][key];
+    if (attr === 'title') el.setAttribute('title', value);
+    else if (attr === 'aria') el.setAttribute('aria-label', value);
+    else el.textContent = value;
+  };
+  const regLabel = (el, key, attr = 'text') => {
+    labels.push({ el, key, attr });
+    setLabel(el, key, attr);
+  };
+  const applyLabels = () => { for (const { el, key, attr } of labels) setLabel(el, key, attr); };
+  new MutationObserver(applyLabels).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+
+  const minimal = document.getElementById('f-minimal');
+  const pin = document.getElementById('f-pin');
+  const close = document.getElementById('f-close');
+
+  regLabel(minimal, 'minimal', 'title');
+  regLabel(minimal, 'toggleMinimal', 'aria');
+  regLabel(document.getElementById('f-settings'), 'settings', 'title');
+  regLabel(document.getElementById('f-settings'), 'settings', 'aria');
+  regLabel(pin, 'pin', 'title');
+  regLabel(document.getElementById('f-min'), 'minimize', 'title');
+  regLabel(document.getElementById('f-max'), 'maximize', 'title');
+  regLabel(document.getElementById('f-max'), 'maximize', 'aria');
+  regLabel(close, 'close', 'title');
+
+  let onMinimalSettings = () => {}; // assigned by the settings block below
+
+  const setMinimal = (on) => {
+    if (on) document.documentElement.setAttribute('data-float-minimal', '');
+    else document.documentElement.removeAttribute('data-float-minimal');
+    minimal.style.color = on ? '#6ee7b7' : 'rgba(205,222,255,0.6)';
+    onMinimalSettings(on);
+    onMinimalChanged();
+  };
+  minimal.addEventListener('click', () => {
+    setMinimal(!document.documentElement.hasAttribute('data-float-minimal'));
+  });
+
+  ipcRenderer.invoke('win:is-top').then((on) => { if (on) pin.style.color = '#6ee7b7'; });
+  pin.addEventListener('click', async () => {
+    const on = await ipcRenderer.invoke('win:toggle-top');
+    pin.style.color = on ? '#6ee7b7' : 'rgba(205,222,255,0.6)';
+  });
+  document.getElementById('f-min').addEventListener('click', () => ipcRenderer.send('win:minimize'));
+  document.getElementById('f-max').addEventListener('click', () => ipcRenderer.send('win:toggle-max'));
+  close.addEventListener('click', () => ipcRenderer.send('win:close'));
+  close.addEventListener('mouseenter', () => { close.style.background = 'rgba(240,70,70,0.75)'; close.style.color = '#fff'; });
+  close.addEventListener('mouseleave', () => { close.style.background = 'rgba(255,255,255,0.07)'; close.style.color = 'rgba(205,222,255,0.6)'; });
+
+  // Settings: text colors + background + shadow, persisted in localStorage.
+  // Colors are preset swatches (one click applies) plus a per-row "custom"
+  // swatch that opens the native picker. The values map onto the `--f-ink` /
+  // `--f-accent` / `--f-bg` / `--f-shadow` custom properties skin.css reads.
+  const DEFAULT_INK = '#eaf2ff';
+  const DEFAULT_ACCENT = '#5ee9a0';
+  const DEFAULT_BG = '#0d1430';
+  const DEFAULT_BG_OPACITY = 0; // 0 = fully transparent (the default)
+  const DEFAULT_SHADOW = '0 1px 2px rgba(0, 0, 0, 0.55)';
+  const INK_PRESETS = ['#eaf2ff', '#f8fafc', '#cbd5e1', '#0f1115', '#334155', '#fef3c7'];
+  const ACCENT_PRESETS = ['#5ee9a0', '#6ee7b7', '#22d3ee', '#93c5fd', '#c4b5fd', '#f87171'];
+  const BG_PRESETS = ['#0d1430', '#111827', '#0f172a', '#1e293b', '#000000', '#14532d'];
+  const PRESETS = { ink: INK_PRESETS, accent: ACCENT_PRESETS, bg: BG_PRESETS };
+  let settings = { ink: DEFAULT_INK, accent: DEFAULT_ACCENT, bg: DEFAULT_BG, bgOpacity: DEFAULT_BG_OPACITY, shadow: true };
+  try { settings = { ...settings, ...JSON.parse(localStorage.getItem('float.settings') || '{}') }; } catch {}
+
+  const hexToRgb = (hex) => {
+    const n = parseInt(hex.slice(1), 16);
+    return ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255);
+  };
+  const applySettings = () => {
+    document.documentElement.style.setProperty('--f-ink', settings.ink);
+    document.documentElement.style.setProperty('--f-accent', settings.accent);
+    document.documentElement.style.setProperty('--f-bg', 'rgba(' + hexToRgb(settings.bg) + ',' + settings.bgOpacity + ')');
+    document.documentElement.style.setProperty('--f-shadow', settings.shadow ? DEFAULT_SHADOW : 'none');
+  };
+  const saveSettings = () => { try { localStorage.setItem('float.settings', JSON.stringify(settings)); } catch {} };
+
+  const settingsPanel = document.createElement('div');
+  settingsPanel.style.cssText = 'position:fixed;top:38px;right:10px;z-index:2147483647;display:none;flex-direction:column;gap:10px;padding:12px;border-radius:10px;background:rgba(13,20,48,0.92);color:#eaf2ff;font-family:var(--dsw-font-family,monospace);font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,0.45);min-width:210px;cursor:default;-webkit-app-region:no-drag;';
+
+  const swatchRow = (key, kind, presets) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
+    const name = document.createElement('span');
+    name.style.cssText = 'line-height:18px;';
+    regLabel(name, key);
+    const strip = document.createElement('div');
+    strip.style.cssText = 'display:flex;align-items:center;gap:4px;';
+    presets.forEach((color) => {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.title = color;
+      sw.dataset.kind = kind;
+      sw.dataset.color = color;
+      sw.style.cssText = 'box-sizing:border-box;width:18px;height:18px;border-radius:50%;border:2px solid transparent;background:' + color + ';cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(255,255,255,0.15);';
+      strip.appendChild(sw);
+    });
+    // "Custom" swatch: a native color input laid invisible over a rainbow dot,
+    // so the picker opens at this on-screen spot (not an off-screen hidden input).
+    const custom = document.createElement('span');
+    custom.dataset.kind = kind;
+    custom.dataset.custom = '1';
+    custom.style.cssText = 'box-sizing:border-box;position:relative;width:18px;height:18px;border-radius:50%;border:2px solid transparent;background:conic-gradient(#f87171,#fbbf24,#4ade80,#22d3ee,#93c5fd,#c4b5fd,#f87171);box-shadow:0 0 0 1px rgba(255,255,255,0.15);';
+    const customPicker = document.createElement('input');
+    customPicker.type = 'color';
+    customPicker.style.cssText = 'position:absolute;inset:-2px;opacity:0;cursor:pointer;border:none;padding:0;';
+    regLabel(customPicker, 'custom', 'title');
+    customPicker.addEventListener('change', () => {
+      settings[kind] = customPicker.value;
+      highlightAll();
+      applySettings();
+      saveSettings();
+    });
+    custom.appendChild(customPicker);
+    strip.appendChild(custom);
+    row.append(name, strip);
+    return row;
+  };
+  settingsPanel.append(swatchRow('inputText', 'ink', INK_PRESETS), swatchRow('answerText', 'accent', ACCENT_PRESETS), swatchRow('bgColor', 'bg', BG_PRESETS));
+
+  const opacityRow = document.createElement('div');
+  opacityRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
+  const opacityName = document.createElement('span');
+  opacityName.style.cssText = 'line-height:18px;';
+  regLabel(opacityName, 'opacity');
+  const opacitySlider = document.createElement('input');
+  opacitySlider.type = 'range';
+  opacitySlider.min = '0';
+  opacitySlider.max = '100';
+  opacitySlider.style.cssText = 'flex:1;cursor:pointer;';
+  opacityRow.append(opacityName, opacitySlider);
+  settingsPanel.append(opacityRow);
+
+  const shadowRow = document.createElement('div');
+  shadowRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
+  const shadowName = document.createElement('span');
+  shadowName.style.cssText = 'line-height:18px;';
+  regLabel(shadowName, 'shadow');
+  const shadowInput = document.createElement('input');
+  shadowInput.type = 'checkbox';
+  shadowInput.style.cursor = 'pointer';
+  shadowRow.append(shadowName, shadowInput);
+  settingsPanel.append(shadowRow);
+
+  const resetBtn = document.createElement('button');
+  resetBtn.style.cssText = 'border:none;border-radius:6px;padding:4px 0;background:rgba(255,255,255,0.07);color:rgba(205,222,255,0.8);font-family:inherit;font-size:12px;cursor:pointer;';
+  regLabel(resetBtn, 'reset');
+  settingsPanel.append(resetBtn);
+  document.documentElement.appendChild(settingsPanel);
+
+  const settingsBtn = document.getElementById('f-settings');
+  const highlightAll = () => {
+    settingsPanel.querySelectorAll('[data-kind]').forEach((sw) => {
+      const active = sw.dataset.custom === '1'
+        ? !PRESETS[sw.dataset.kind].includes(settings[sw.dataset.kind])
+        : sw.dataset.color === settings[sw.dataset.kind];
+      sw.style.borderColor = active ? '#fff' : 'transparent';
+    });
+  };
+  const syncInputs = () => {
+    shadowInput.checked = settings.shadow;
+    opacitySlider.value = String(Math.round(settings.bgOpacity * 100));
+    highlightAll();
+  };
+
+  const closeSettings = () => { settingsPanel.style.display = 'none'; settingsBtn.style.color = 'rgba(205,222,255,0.6)'; };
+  // The settings channel is minimal-only: hide its button in full mode, and
+  // close an open panel when switching away from minimal.
+  onMinimalSettings = (on) => {
+    settingsBtn.style.display = on ? '' : 'none';
+    if (!on) closeSettings();
+  };
+  settingsBtn.addEventListener('click', () => {
+    if (settingsPanel.style.display === 'flex') { closeSettings(); return; }
+    syncInputs();
+    settingsPanel.style.display = 'flex';
+    settingsBtn.style.color = '#6ee7b7';
+  });
+  settingsPanel.addEventListener('click', (e) => {
+    const sw = e.target.closest('button[data-kind]');
+    if (sw === null) return;
+    settings[sw.dataset.kind] = sw.dataset.color;
+    highlightAll();
+    applySettings();
+    saveSettings();
+  });
+  shadowInput.addEventListener('change', () => { settings.shadow = shadowInput.checked; applySettings(); saveSettings(); });
+  opacitySlider.addEventListener('input', () => { settings.bgOpacity = Number(opacitySlider.value) / 100; applySettings(); saveSettings(); });
+  resetBtn.addEventListener('click', () => {
+    settings = { ink: DEFAULT_INK, accent: DEFAULT_ACCENT, bg: DEFAULT_BG, bgOpacity: DEFAULT_BG_OPACITY, shadow: true };
+    syncInputs();
+    applySettings();
+    saveSettings();
+  });
+  document.addEventListener('click', (e) => {
+    if (settingsPanel.style.display !== 'flex') return;
+    if (!settingsPanel.contains(e.target) && e.target !== settingsBtn) closeSettings();
+  });
+
+  syncInputs();
+  applySettings();
+
+  // Default: minimal ON (set DSH_FLOAT_FULL=1 to start in full mode instead).
+  setMinimal(process.env.DSH_FLOAT_FULL !== '1');
+}
+
+/* Show the session's context occupancy as plain `used/contextWindow` text
+   (e.g. `8K/1M`) appended to the bottom stats bar (the turn-tail node), only
+   in minimal mode. The figures live in the context meter's click-open panel;
+   we open it programmatically, read `~used / total`, and close it. React 18
+   batches `setState(!open)` across two synchronous clicks (both use the stale
+   closure), so the read+close runs on the next macrotask; the panel is kept
+   invisible by skin.css the whole time, so there is no flash. */
+function installContextText() {
+  let trigger = null;
+  let attrObserver = null;
+  let tail = null;
+  let textEl = null;
+  let reading = false;
+
+  const minimalOn = () => document.documentElement.hasAttribute('data-float-minimal');
+
+  function readFigures(cb) {
+    if (!trigger || reading) { cb && cb(null); return; }
+    reading = true;
+    const wasOpen = trigger.getAttribute('aria-expanded') === 'true';
+    if (!wasOpen) trigger.click();
+    setTimeout(() => {
+      try {
+        let out = null;
+        const panel = document.querySelector('[role="dialog"][aria-label="上下文已用"], [role="dialog"][aria-label="of context used"]');
+        if (panel) {
+          const m = panel.textContent.replace(/\s+/g, ' ').match(/~\s*([\d.]+[KM]?)\s*\/\s*([\d.]+[KM]?)/);
+          if (m) out = m[1] + '/' + m[2];
+        }
+        if (!wasOpen) trigger.click(); // close (fresh closure now)
+        cb && cb(out);
+      } finally {
+        reading = false;
+      }
+    }, 0);
+  }
+
+  function ensureText() {
+    if (!minimalOn() || !tail) {
+      if (textEl) { textEl.remove(); textEl = null; }
+      return false;
+    }
+    if (!textEl) {
+      textEl = document.createElement('span');
+      textEl.className = 'f-context-text';
+    }
+    if (textEl.parentElement !== tail) tail.appendChild(textEl);
+    return true;
+  }
+
+  function refresh() {
+    if (!ensureText()) return;
+    readFigures((fig) => {
+      if (ensureText() && fig) textEl.textContent = fig;
+    });
+  }
+
+  const bodyMo = new MutationObserver(() => {
+    const t = document.querySelector('button[aria-label^="上下文已用"], button[aria-label$=" of context used"]');
+    if (t !== trigger) {
+      if (attrObserver) { attrObserver.disconnect(); attrObserver = null; }
+      trigger = t;
+      if (trigger) {
+        attrObserver = new MutationObserver(() => refresh());
+        attrObserver.observe(trigger, { attributes: true, attributeFilter: ['aria-label'] });
+      }
+    }
+    const tl = document.querySelector('[data-chat-flow-kind="turn-tail"]');
+    if (tl !== tail) {
+      tail = tl;
+      if (textEl) { textEl.remove(); textEl = null; }
+      if (tl) refresh();
+    } else if (textEl && textEl.parentElement !== tail && minimalOn() && tail) {
+      // React re-rendered the stats line and wiped our span; re-attach it.
+      tail.appendChild(textEl);
+    }
+  });
+  bodyMo.observe(document.body, { childList: true, subtree: true });
+
+  onMinimalChanged = refresh;
+}
+
+/* Immersion: show the conversation scrollbar only while the mouse is moving,
+   then fade it out after a short idle period. */
+function installScrollbarReveal() {
+  let timer = null;
+  const show = () => {
+    document.documentElement.classList.add('f-scroll');
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => document.documentElement.classList.remove('f-scroll'), 1000);
+  };
+  document.addEventListener('mousemove', show, { passive: true });
+  document.addEventListener('wheel', show, { passive: true });
+}
+
+/* Tell the shell once the SPA has mounted its surface, so the window can stay
+   hidden through the white loader and appear already-minimal. Two animation
+   frames let the skinned surface paint once before the window shows. */
+function notifyAppReady() {
+  const READY_SELECTOR = '[data-slot="conversation"]';
+  const done = () => requestAnimationFrame(() => requestAnimationFrame(() => ipcRenderer.send('app:ready')));
+  if (document.querySelector(READY_SELECTOR)) { done(); return; }
+  const observer = new MutationObserver(() => {
+    if (document.querySelector(READY_SELECTOR)) { observer.disconnect(); done(); }
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => { notifyAppReady(); injectControls(); installContextText(); installScrollbarReveal(); });
+} else {
+  notifyAppReady();
+  injectControls();
+  installContextText();
+  installScrollbarReveal();
+}
+
+contextBridge.exposeInMainWorld('floatApp', {
+  minimize: () => ipcRenderer.send('win:minimize'),
+  close: () => ipcRenderer.send('win:close'),
+  toggleTop: () => ipcRenderer.invoke('win:toggle-top'),
+  isTop: () => ipcRenderer.invoke('win:is-top'),
+});

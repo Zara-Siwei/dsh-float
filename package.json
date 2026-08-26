@@ -1,0 +1,31 @@
+{
+  "name": "@zaralinux/dsh-float",
+  "version": "0.2.0",
+  "description": "Self-contained floating translucent Electron TUI for DeepSeek Harness — a dsh profile bundle",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "shell",
+    "float.bat",
+    "float.vbs",
+    "cordis.patch.yml"
+  ],
+  "dependencies": {
+    "electron": "^43.4.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

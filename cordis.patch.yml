@@ -1,0 +1,22 @@
+# @zaralinux/dsh-float bundle patch. Applied after dsh-base and dsh-web-app:
+# bind the web server to an OS-assigned port (never collides with a running
+# `dsh web`) and mount the Electron shell over the served web UI.
+
+- id: webserver
+  config:
+    host: '127.0.0.1'
+    port: 0
+
+# The float shell replaces the browser: never hand the URL to the default
+# browser. web-runtime's config is replaced wholesale, so every key it owns
+# is restated (the row keeps its `inject: [webStartup]`).
+- id: web-runtime
+  config:
+    openBrowser: false
+    printUrl: true
+    surfaceContext: true
+    trustedHosts: []
+
+- insert:
+    - id: float-runner
+      name: '@zaralinux/dsh-float'
