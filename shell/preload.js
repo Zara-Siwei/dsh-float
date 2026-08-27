@@ -176,6 +176,11 @@ function injectControls() {
     document.documentElement.style.setProperty('--f-bg', 'rgba(' + hexToRgb(settings.bg) + ',' + settings.bgOpacity + ')');
     document.documentElement.style.setProperty('--f-shadow', settings.shadow ? DEFAULT_SHADOW : 'none');
     document.documentElement.style.setProperty('--f-btn', settings.btn);
+    // Inline-code chip translucency: a bit more opaque than the root background
+    // so it still reads as a chip, but never a solid block over a translucent
+    // terminal. 1 = fully opaque (matches stock when the background is opaque).
+    const codeAlpha = Math.min(1, settings.bgOpacity + 0.25);
+    document.documentElement.style.setProperty('--f-code-alpha', (codeAlpha * 100) + '%');
     // Re-tint any currently-active controls after a button-color change.
     if (document.documentElement.hasAttribute('data-float-minimal')) minimal.style.color = settings.btn;
     if (pinOn) pin.style.color = settings.btn;

@@ -328,6 +328,13 @@ html[data-float-minimal] [data-chat-flow-kind='tool-call'] {
   color: #96a0b0 !important;
 }
 
+/* Inline code (paths, filenames, snippets) keeps its theme background but at a
+   translucency that follows the root background opacity (a bit more opaque),
+   instead of the stock opaque chip. */
+html[data-float-minimal] :not(pre) > code {
+  background-color: color-mix(in srgb, var(--dsw-alias-markdown-inline-code) var(--f-code-alpha, 100%), transparent) !important;
+}
+
 /* Hide the conversation scrollbar thumb until the mouse moves (preload.js toggles
    the `f-scroll` class on <html>; it fades out again after a moment of idle). */
 html[data-float-minimal] [data-conversation-scroll]::-webkit-scrollbar {
