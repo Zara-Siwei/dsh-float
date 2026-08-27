@@ -208,7 +208,6 @@ function injectControls() {
   const rgbEditors = {};      // kind -> { row, preview, r, g, b }
   const syncColorUI = () => {
     for (const k in customSwatches) {
-      customSwatches[k].style.background = settings[k];
       const ed = rgbEditors[k];
       if (!ed) continue;
       ed.preview.style.background = settings[k];
@@ -245,7 +244,7 @@ function injectControls() {
     custom.type = 'button';
     custom.dataset.kind = kind;
     custom.dataset.custom = '1';
-    custom.style.cssText = 'box-sizing:border-box;width:18px;height:18px;border-radius:50%;border:2px solid transparent;background:' + settings[kind] + ';cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(255,255,255,0.28);';
+    custom.style.cssText = 'box-sizing:border-box;width:18px;height:18px;border-radius:50%;border:2px solid transparent;background:conic-gradient(#f87171,#fbbf24,#4ade80,#22d3ee,#93c5fd,#c4b5fd,#f87171);cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(255,255,255,0.28);';
     customSwatches[kind] = custom;
     const right = document.createElement('div');
     right.style.cssText = 'display:flex;align-items:center;gap:4px;';
@@ -284,14 +283,25 @@ function injectControls() {
       if (v === null) return;
       settings[kind] = v;
       preview.style.background = v;
-      custom.style.background = v;
       highlightAll();
       applySettings();
       if (persist) saveSettings();
     };
+    const clampField = (inp) => {
+      if (inp.value === '') return null;
+      const n = Number(inp.value);
+      if (!Number.isFinite(n)) return null;
+      const c = Math.max(0, Math.min(255, Math.round(n)));
+      inp.value = String(c);
+      return c;
+    };
     [rInp, gInp, bInp].forEach((inp) => {
       inp.addEventListener('input', () => applyRgb(false));
-      inp.addEventListener('change', () => { if (readRgb() === null) syncColorUI(); else applyRgb(true); });
+      inp.addEventListener('change', () => {
+        const vals = [clampField(rInp), clampField(gInp), clampField(bInp)];
+        if (vals.some((v) => v === null)) { syncColorUI(); return; }
+        applyRgb(true);
+      });
     });
     rgbRow.append(preview, rInp.parentElement, gInp.parentElement, bInp.parentElement);
     rgbEditors[kind] = { row: rgbRow, preview, r: rInp, g: gInp, b: bInp };
