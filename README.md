@@ -1,51 +1,50 @@
 # DeepSeek Float
 
-把 dsh（DeepSeek Harness）的 Web 界面装进无边框半透明 Electron 窗口的外部插件。极简模式下是悬浮在桌面上的「终端式」透明界面；完整模式则回归 dsh web 原生界面。关窗即退出整个运行时。
+A [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) bundle that runs the dsh Web UI inside a borderless, translucent Electron window. In **minimal mode** it becomes a floating, terminal-style overlay on your desktop; in **full mode** it returns to the stock dsh web interface. Closing the window exits the whole runtime.
 
-![浮动终端界面](imgs_for_show/Desktop%20Screenshot.png)
+![Floating terminal UI](imgs_for_show/Desktop%20Screenshot.png)
 
-## 快速开始
+## Install
 
-> 下文 `<plugin-dir>` 指你克隆/存放本插件的绝对路径。前置条件：`dsh` 在 PATH 上、`node` ≥ 18、`pnpm`。
+Prerequisites: the `dsh` CLI on your `PATH`, Node.js ≥ 18, `pnpm`, and `git`.
 
 ```powershell
-git clone https://github.com/Zara-Siwei/dsh-float.git
-cd dsh-float
-pnpm install                      # 装 electron
-dsh plugin --profile float add link:<plugin-dir>
+dsh plugin --profile float add github:Zara-Siwei/dsh-float
 ```
 
-打开 `~/.dsh/profiles/float/package.json`，确认 `dsh.profile.bundles` 为（顺序不能乱）：
+`dsh plugin` forwards to pnpm in the profile directory, so this one command clones the plugin, installs its dependencies (Electron), and registers the bundle.
+
+Then open `~/.dsh/profiles/float/package.json` and make sure `dsh.profile.bundles` is:
 
 ```json
 ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@zaralinux/dsh-float"]
 ```
 
-启动：
+`dsh-float` is a surface bundle on top of `dsh-web-app`; `dsh plugin` only appends `dsh-float`, so add `dsh-web-app` yourself. Order matters.
+
+## Run
 
 ```powershell
 dsh --profile float
 ```
 
-Windows 下也可双击 `float.vbs`（无窗口直接弹界面）。
+On Windows you can also double-click `float.vbs` for a windowless launch.
 
-> **electron 二进制下载失败（国内网络）**：`$env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'; node node_modules/electron/install.js`
+## UI & settings
 
-## 界面与设置
+- **Minimal mode** (default): the sidebar, details and header collapse into a breathing green dot in the top-right; hover it to expand the controls (❖ minimal/full, ⚙ settings, ↑ always-on-top, – □ ✕).
+- **⚙ Appearance settings**: text colors, background color & opacity, and text shadow — persisted automatically.
 
-- **极简模式**（默认）：侧栏、详情、头部都收起，右上角是一个会呼吸的绿色光点，悬停展开按钮（❖ 切换极简/完整、⚙ 设置、↑ 置顶、– □ ✕）。
-- **⚙ 外观设置**：文字颜色、背景颜色与透明度、文字阴影，自动记忆：
+  ![Appearance settings](imgs_for_show/Appearance%20Settings.png)
 
-  ![外观设置](imgs_for_show/Appearance%20Settings.png)
+- **Full mode**: turn off minimal mode (❖) to get the stock dsh web UI, where dsh's own configuration lives. The ⚙ panel exists only in minimal mode, and its labels **follow dsh's own language** (中文 / English); change the language in dsh's settings after switching to full mode.
 
-- **完整模式**：关掉极简（❖）后回归 dsh web 原生界面，用于改 dsh 自身的配置。⚙ 设置面板只在极简模式出现，其文字**自动跟随 dsh 自身的语言**（中文/English）；语言本身在 dsh 的设置里改——切到完整模式即可看到侧边栏和设置：
+  ![Full mode](imgs_for_show/Screenshot%20with%20Minimalist%20Mode%20Disabled.png)
 
-  ![完整模式](imgs_for_show/Screenshot%20with%20Minimalist%20Mode%20Disabled.png)
+## Troubleshooting
 
-## 常见问题
-
-| 现象 | 处理 |
+| Symptom | Fix |
 | --- | --- |
-| `pending (waiting for service: webServer)` | profile 缺 `@deepseek-ai/dsh-web-app`（见快速开始的 bundles 检查） |
-| `electron binary not found` / `Electron failed to install correctly` | 依赖没装好，用上面的镜像命令重装 |
-| 启动时多弹了一个浏览器标签页 | 检查 `cordis.patch.yml` 里 `web-runtime` 的 `openBrowser: false` |
+| `pending (waiting for service: webServer)` | The profile is missing `@deepseek-ai/dsh-web-app` (see Install). |
+| `electron binary not found` / `Electron failed to install correctly` | Reinstall the dependency. |
+| A browser tab opens on startup | Ensure `web-runtime` has `openBrowser: false` in `cordis.patch.yml`. |

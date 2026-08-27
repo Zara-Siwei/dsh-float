@@ -1,8 +1,12 @@
 {
   "name": "@zaralinux/dsh-float",
   "version": "0.2.0",
-  "description": "Self-contained floating translucent Electron TUI for DeepSeek Harness — a dsh profile bundle",
+  "description": "Self-contained floating translucent Electron TUI for DeepSeek Harness — a dsh surface bundle",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zara-Siwei/dsh-float.git"
+  },
   "type": "module",
   "main": "lib/index.js",
   "exports": {
