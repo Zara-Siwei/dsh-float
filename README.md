@@ -1,50 +1,49 @@
 # DeepSeek Float
 
-A [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/) bundle that runs the dsh Web UI inside a borderless, translucent Electron window. In **minimal mode** it becomes a floating, terminal-style overlay on your desktop; in **full mode** it returns to the stock dsh web interface. Closing the window exits the whole runtime.
+[English](#english) · [中文](#chinese)
 
 ![Floating terminal UI](imgs_for_show/Desktop%20Screenshot.png)
 
-## Install
+## English
 
-Prerequisites: the `dsh` CLI on your `PATH`, Node.js ≥ 18, `pnpm`, and `git`.
+A dsh bundle that runs the DeepSeek Harness Web UI in a borderless translucent Electron window — a floating, terminal-style overlay in minimal mode.
+
+**Install & run**
 
 ```powershell
 dsh plugin --profile float add github:Zara-Siwei/dsh-float
 ```
 
-`dsh plugin` forwards to pnpm in the profile directory, so this one command clones the plugin, installs its dependencies (Electron), and registers the bundle.
-
-Then open `~/.dsh/profiles/float/package.json` and make sure `dsh.profile.bundles` is:
+Then set `~/.dsh/profiles/float/package.json` → `dsh.profile.bundles` to:
 
 ```json
 ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@zaralinux/dsh-float"]
 ```
 
-`dsh-float` is a surface bundle on top of `dsh-web-app`; `dsh plugin` only appends `dsh-float`, so add `dsh-web-app` yourself. Order matters.
+```powershell
+dsh --profile float
+```
 
-## Run
+Prerequisites: `dsh` on PATH, Node ≥ 18, `pnpm`, `git`. The ⚙ settings (minimal mode only) follow dsh's own language.
+
+## 中文
+
+一个 dsh bundle：把 DeepSeek Harness 的 Web 界面装进无边框半透明 Electron 窗口，极简模式下是悬浮的「终端式」透明界面。
+
+**安装与运行**
+
+```powershell
+dsh plugin --profile float add github:Zara-Siwei/dsh-float
+```
+
+然后把 `~/.dsh/profiles/float/package.json` 的 `dsh.profile.bundles` 设为：
+
+```json
+["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@zaralinux/dsh-float"]
+```
 
 ```powershell
 dsh --profile float
 ```
 
-On Windows you can also double-click `float.vbs` for a windowless launch.
-
-## UI & settings
-
-- **Minimal mode** (default): the sidebar, details and header collapse into a breathing green dot in the top-right; hover it to expand the controls (❖ minimal/full, ⚙ settings, ↑ always-on-top, – □ ✕).
-- **⚙ Appearance settings**: text colors, background color & opacity, and text shadow — persisted automatically.
-
-  ![Appearance settings](imgs_for_show/Appearance%20Settings.png)
-
-- **Full mode**: turn off minimal mode (❖) to get the stock dsh web UI, where dsh's own configuration lives. The ⚙ panel exists only in minimal mode, and its labels **follow dsh's own language** (中文 / English); change the language in dsh's settings after switching to full mode.
-
-  ![Full mode](imgs_for_show/Screenshot%20with%20Minimalist%20Mode%20Disabled.png)
-
-## Troubleshooting
-
-| Symptom | Fix |
-| --- | --- |
-| `pending (waiting for service: webServer)` | The profile is missing `@deepseek-ai/dsh-web-app` (see Install). |
-| `electron binary not found` / `Electron failed to install correctly` | Reinstall the dependency. |
-| A browser tab opens on startup | Ensure `web-runtime` has `openBrowser: false` in `cordis.patch.yml`. |
+前置条件：`dsh` 在 PATH、Node ≥ 18、`pnpm`、`git`。⚙ 设置（仅极简模式）文字跟随 dsh 自身语言。
