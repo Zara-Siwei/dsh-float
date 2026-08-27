@@ -33,7 +33,7 @@ dsh --profile web
 ## Uninstall
 
 ```powershell
-dsh plugin --profile web remove @zaralinux/dsh-float
+dsh plugin --profile web remove dsh-float
 ```
 
 `dsh --profile web` then returns to the normal browser UI.

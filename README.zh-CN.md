@@ -33,7 +33,7 @@ dsh --profile web
 ## 卸载
 
 ```powershell
-dsh plugin --profile web remove @zaralinux/dsh-float
+dsh plugin --profile web remove dsh-float
 ```
 
 之后 `dsh --profile web` 恢复为正常的浏览器界面。

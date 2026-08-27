@@ -1,5 +1,5 @@
 {
-  "name": "@zaralinux/dsh-float",
+  "name": "dsh-float",
   "version": "0.2.0",
   "description": "Self-contained floating translucent Electron TUI for DeepSeek Harness — a dsh surface bundle",
   "license": "MIT",

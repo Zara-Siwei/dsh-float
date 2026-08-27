@@ -1,4 +1,4 @@
-# @zaralinux/dsh-float bundle patch. Applied after dsh-base and dsh-web-app:
+# dsh-float bundle patch. Applied after dsh-base and dsh-web-app:
 # bind an OS-assigned port by default (never collides with a running `dsh web`)
 # while honoring an explicit --port, then mount the Electron shell over the
 # served web UI.
@@ -20,4 +20,4 @@
 
 - insert:
     - id: float-runner
-      name: '@zaralinux/dsh-float'
+      name: 'dsh-float'
