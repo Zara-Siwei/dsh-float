@@ -95,6 +95,15 @@ html[data-float-minimal] [data-slot='root'] > div > [data-side] {
   display: none !important;
 }
 
+/* The 0-width sidebar/details columns keep a 1px column border that paints a
+   seam at the window edge (sidebar's border-right = left edge). Drop both. */
+html[data-float-minimal] [data-slot='root'] > div > [class*='sidebarCol'] {
+  border-right: none !important;
+}
+html[data-float-minimal] [data-slot='root'] > div > [class*='detailsCol'] {
+  border-left: none !important;
+}
+
 /* Hide the conversation header (session title / tabs / actions / utilities). */
 html[data-float-minimal] [data-slot='conversation.session.header'] {
   display: none !important;
