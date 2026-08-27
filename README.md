@@ -40,7 +40,7 @@ dsh plugin --profile web remove @zaralinux/dsh-float
 
 ## Troubleshooting
 
-**`Electron failed to install correctly` / `fetch failed`** — the Electron binary download was blocked. Use a mirror (run inside `~/.dsh/profiles/web`):
+**`Electron failed to install correctly` / `fetch failed`** — the Electron binary download failed (e.g. when the network cannot reach the download host). Use a mirror (run inside `~/.dsh/profiles/web`):
 
 ```powershell
 $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'

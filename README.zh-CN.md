@@ -40,7 +40,7 @@ dsh plugin --profile web remove @zaralinux/dsh-float
 
 ## 故障排查
 
-**`Electron failed to install correctly` / `fetch failed`** —— electron 二进制下载被墙了。用镜像重下（在 `~/.dsh/profiles/web` 目录下跑）：
+**`Electron failed to install correctly` / `fetch failed`** —— electron 二进制下载失败（比如网络访问不了默认下载源）。可改用镜像重下（在 `~/.dsh/profiles/web` 目录下跑）：
 
 ```powershell
 $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
