@@ -70,8 +70,8 @@ function injectControls() {
   // web reflects on <html lang> (zh -> "zh-CN", en -> "en"). Registering a
   // label applies it immediately and re-applies it whenever lang changes.
   const I18N = {
-    zh: { minimal: '极简模式', toggleMinimal: '切换极简模式', settings: '设置', pin: '置顶', minimize: '最小化', maximize: '最大化', restore: '还原', close: '关闭', inputText: '输入文字', answerText: '回答文字', bgColor: '背景颜色', btnColor: '按钮颜色', opacity: '透明度', shadow: '文字阴影', reset: '恢复默认', custom: '自定义' },
-    en: { minimal: 'Minimal mode', toggleMinimal: 'Toggle minimal mode', settings: 'Settings', pin: 'Always on top', minimize: 'Minimize', maximize: 'Maximize', restore: 'Restore down', close: 'Close', inputText: 'Input text', answerText: 'Answer text', bgColor: 'Background', btnColor: 'Button color', opacity: 'Opacity', shadow: 'Text shadow', reset: 'Reset', custom: 'Custom' },
+    zh: { minimal: '极简模式', toggleMinimal: '切换极简模式', settings: '设置', pin: '置顶', minimize: '最小化', maximize: '最大化', restore: '还原', close: '关闭', inputText: '输入文字', answerText: '回答文字', bgColor: '背景颜色', btnColor: '按钮颜色', opacity: '透明度', shadow: '文字阴影', reset: '恢复默认' },
+    en: { minimal: 'Minimal mode', toggleMinimal: 'Toggle minimal mode', settings: 'Settings', pin: 'Always on top', minimize: 'Minimize', maximize: 'Maximize', restore: 'Restore down', close: 'Close', inputText: 'Input text', answerText: 'Answer text', bgColor: 'Background', btnColor: 'Button color', opacity: 'Opacity', shadow: 'Text shadow', reset: 'Reset' },
   };
   const currentLang = () => ((document.documentElement.lang || '').toLowerCase().startsWith('zh') ? 'zh' : 'en');
   const labels = [];
@@ -143,9 +143,9 @@ function injectControls() {
   close.addEventListener('mouseleave', () => { close.style.background = 'rgba(255,255,255,0.07)'; close.style.color = 'rgba(205,222,255,0.6)'; });
 
   // Settings: text colors + background + shadow, persisted to userData via IPC.
-  // Colors are preset swatches (one click applies) plus a per-row "custom"
-  // swatch that opens the native picker. The values map onto the `--f-ink` /
-  // `--f-accent` / `--f-bg` / `--f-shadow` custom properties skin.css reads.
+  // Colors are preset swatches (one click applies). The values map onto the
+  // `--f-ink` / `--f-accent` / `--f-bg` / `--f-btn` / `--f-shadow` custom
+  // properties skin.css reads.
   const DEFAULT_INK = '#eaf2ff';
   const DEFAULT_ACCENT = '#5ee9a0';
   const DEFAULT_BG = '#0d1430';
@@ -156,7 +156,6 @@ function injectControls() {
   const ACCENT_PRESETS = ['#5ee9a0', '#6ee7b7', '#22d3ee', '#93c5fd', '#c4b5fd', '#f87171'];
   const BG_PRESETS = ['#0d1430', '#111827', '#0f172a', '#1e293b', '#000000', '#14532d'];
   const BTN_PRESETS = ['#5ee9a0', '#6ee7b7', '#22d3ee', '#93c5fd', '#c4b5fd', '#f87171'];
-  const PRESETS = { ink: INK_PRESETS, accent: ACCENT_PRESETS, bg: BG_PRESETS, btn: BTN_PRESETS };
   let settings = {
     ink: savedSettings.ink ?? DEFAULT_INK,
     accent: savedSettings.accent ?? DEFAULT_ACCENT,
@@ -210,24 +209,6 @@ function injectControls() {
       sw.style.cssText = 'box-sizing:border-box;width:18px;height:18px;border-radius:50%;border:2px solid transparent;background:' + color + ';cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(255,255,255,0.15);';
       strip.appendChild(sw);
     });
-    // "Custom" swatch: a native color input laid invisible over a rainbow dot,
-    // so the picker opens at this on-screen spot (not an off-screen hidden input).
-    const custom = document.createElement('span');
-    custom.dataset.kind = kind;
-    custom.dataset.custom = '1';
-    custom.style.cssText = 'box-sizing:border-box;position:relative;width:18px;height:18px;border-radius:50%;border:2px solid transparent;background:conic-gradient(#f87171,#fbbf24,#4ade80,#22d3ee,#93c5fd,#c4b5fd,#f87171);box-shadow:0 0 0 1px rgba(255,255,255,0.15);';
-    const customPicker = document.createElement('input');
-    customPicker.type = 'color';
-    customPicker.style.cssText = 'position:absolute;inset:-2px;opacity:0;cursor:pointer;border:none;padding:0;';
-    regLabel(customPicker, 'custom', 'title');
-    customPicker.addEventListener('change', () => {
-      settings[kind] = customPicker.value;
-      highlightAll();
-      applySettings();
-      saveSettings();
-    });
-    custom.appendChild(customPicker);
-    strip.appendChild(custom);
     row.append(name, strip);
     return row;
   };
@@ -266,10 +247,7 @@ function injectControls() {
   const settingsBtn = document.getElementById('f-settings');
   const highlightAll = () => {
     settingsPanel.querySelectorAll('[data-kind]').forEach((sw) => {
-      const active = sw.dataset.custom === '1'
-        ? !PRESETS[sw.dataset.kind].includes(settings[sw.dataset.kind])
-        : sw.dataset.color === settings[sw.dataset.kind];
-      sw.style.borderColor = active ? '#fff' : 'transparent';
+      sw.style.borderColor = sw.dataset.color === settings[sw.dataset.kind] ? '#fff' : 'transparent';
     });
   };
   const syncInputs = () => {
