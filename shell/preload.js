@@ -381,7 +381,9 @@ function injectControls() {
   });
   settingsPanel.addEventListener('click', (e) => {
     const sw = e.target.closest('button[data-kind]');
-    if (sw === null) return;
+    // Skip the rainbow "custom" swatch (it has no data-color; its own click
+    // handler toggles the RGB editor instead).
+    if (sw === null || sw.dataset.custom === '1') return;
     settings[sw.dataset.kind] = sw.dataset.color;
     highlightAll();
     applySettings();
