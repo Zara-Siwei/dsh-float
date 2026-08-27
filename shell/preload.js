@@ -190,21 +190,41 @@ function injectControls() {
   };
 
   const settingsPanel = document.createElement('div');
-  settingsPanel.style.cssText = 'position:fixed;top:38px;right:10px;z-index:2147483647;display:none;flex-direction:column;gap:10px;padding:12px;border-radius:12px;background:linear-gradient(180deg,rgba(32,32,38,0.97),rgba(11,11,14,0.985));color:#eaf2ff;font-family:var(--dsw-font-family,monospace);font-size:13px;border:1px solid rgba(255,255,255,0.09);box-shadow:inset 0 1px 0 rgba(255,255,255,0.07),0 10px 32px rgba(0,0,0,0.6);min-width:320px;cursor:default;-webkit-app-region:no-drag;';
+  settingsPanel.style.cssText = 'position:fixed;top:38px;right:10px;z-index:2147483647;display:none;flex-direction:column;gap:10px;padding:12px;border-radius:12px;background:linear-gradient(180deg,rgba(32,32,38,0.97),rgba(11,11,14,0.985));color:#eaf2ff;font-family:var(--dsw-font-family,monospace);font-size:13px;border:1px solid rgba(255,255,255,0.09);box-shadow:inset 0 1px 0 rgba(255,255,255,0.07),0 10px 32px rgba(0,0,0,0.6);min-width:210px;cursor:default;-webkit-app-region:no-drag;';
 
-  // Compact hex field per color row: a stable cross-platform replacement for
+  // Custom color = the trailing swatch (shows the live color); clicking it
+  // toggles an inline R/G/B editor. A stable cross-platform replacement for
   // the native <input type=color> picker (broken on Windows, worse on Linux).
-  const hexInputs = {};
-  const normalizeHex = (raw) => {
-    const v = String(raw || '').trim().replace(/^#/, '');
-    return /^[0-9a-fA-F]{6}$/.test(v) ? '#' + v.toLowerCase() : null;
+  const PRESETS = { ink: INK_PRESETS, accent: ACCENT_PRESETS, bg: BG_PRESETS, btn: BTN_PRESETS };
+  const hexToRgbObj = (hex) => {
+    const n = parseInt(String(hex).replace(/^#/, ''), 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
   };
-  const syncHexInputs = () => { for (const k in hexInputs) hexInputs[k].value = settings[k]; };
-  const hexStyle = document.createElement('style');
-  hexStyle.textContent = '.f-hex{box-sizing:border-box;width:64px;height:20px;padding:0 6px;border:1px solid rgba(255,255,255,0.12);border-radius:6px;background:rgba(255,255,255,0.06);color:rgba(205,222,255,0.85);font-family:inherit;font-size:11px;line-height:18px;outline:none;transition:border-color .15s,background .15s}.f-hex:hover{border-color:rgba(255,255,255,0.22)}.f-hex:focus{border-color:rgba(94,233,160,0.6);background:rgba(255,255,255,0.09)}';
-  document.head.appendChild(hexStyle);
+  const rgbToHex = (r, g, b) => '#' + [r, g, b].map((v) => {
+    const c = Math.max(0, Math.min(255, Math.round(v)));
+    return c.toString(16).padStart(2, '0');
+  }).join('');
+  const customSwatches = {}; // kind -> trailing swatch button
+  const rgbEditors = {};      // kind -> { row, preview, r, g, b }
+  const syncColorUI = () => {
+    for (const k in customSwatches) {
+      customSwatches[k].style.background = settings[k];
+      const ed = rgbEditors[k];
+      if (!ed) continue;
+      ed.preview.style.background = settings[k];
+      const { r, g, b } = hexToRgbObj(settings[k]);
+      ed.r.value = String(r);
+      ed.g.value = String(g);
+      ed.b.value = String(b);
+    }
+  };
+  const closeRgbEditors = () => { for (const k in rgbEditors) rgbEditors[k].row.style.display = 'none'; };
+  const rgbStyle = document.createElement('style');
+  rgbStyle.textContent = '.f-rgb{box-sizing:border-box;width:40px;height:20px;padding:0 4px;border:1px solid rgba(255,255,255,0.12);border-radius:6px;background:rgba(255,255,255,0.06);color:rgba(205,222,255,0.85);font-family:inherit;font-size:11px;line-height:18px;outline:none;transition:border-color .15s}.f-rgb:focus{border-color:rgba(94,233,160,0.6)}.f-rgb::-webkit-outer-spin-button,.f-rgb::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}.f-rgb{-moz-appearance:textfield}';
+  document.head.appendChild(rgbStyle);
 
   const swatchRow = (key, kind, presets) => {
+    const frag = document.createDocumentFragment();
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
     const name = document.createElement('span');
@@ -221,27 +241,72 @@ function injectControls() {
       sw.style.cssText = 'box-sizing:border-box;width:18px;height:18px;border-radius:50%;border:2px solid transparent;background:' + color + ';cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(255,255,255,0.15);';
       strip.appendChild(sw);
     });
-    const hex = document.createElement('input');
-    hex.type = 'text';
-    hex.className = 'f-hex';
-    hex.spellcheck = false;
-    hex.autocomplete = 'off';
-    hex.value = settings[kind];
-    hex.addEventListener('change', () => {
-      const v = normalizeHex(hex.value);
-      if (v === null) { syncHexInputs(); return; }
+    const custom = document.createElement('button');
+    custom.type = 'button';
+    custom.dataset.kind = kind;
+    custom.dataset.custom = '1';
+    custom.style.cssText = 'box-sizing:border-box;width:18px;height:18px;border-radius:50%;border:2px solid transparent;background:' + settings[kind] + ';cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(255,255,255,0.28);';
+    customSwatches[kind] = custom;
+    const right = document.createElement('div');
+    right.style.cssText = 'display:flex;align-items:center;gap:4px;';
+    right.append(strip, custom);
+    row.append(name, right);
+    frag.append(row);
+
+    const rgbRow = document.createElement('div');
+    rgbRow.style.cssText = 'display:none;align-items:center;gap:6px;padding:0 0 2px;';
+    const preview = document.createElement('span');
+    preview.style.cssText = 'box-sizing:border-box;flex:none;width:18px;height:18px;border-radius:50%;background:' + settings[kind] + ';box-shadow:0 0 0 1px rgba(255,255,255,0.15);';
+    const mkField = (label) => {
+      const wrap = document.createElement('label');
+      wrap.style.cssText = 'display:flex;align-items:center;gap:3px;color:rgba(205,222,255,0.55);font-size:10px;';
+      const t = document.createElement('span');
+      t.textContent = label;
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.className = 'f-rgb';
+      inp.min = '0';
+      inp.max = '255';
+      inp.step = '1';
+      wrap.append(t, inp);
+      return inp;
+    };
+    const rInp = mkField('R');
+    const gInp = mkField('G');
+    const bInp = mkField('B');
+    const readRgb = () => {
+      const v = [rInp.value, gInp.value, bInp.value];
+      if (v.some((x) => x === '' || Number.isNaN(Number(x)))) return null;
+      return rgbToHex(Number(v[0]), Number(v[1]), Number(v[2]));
+    };
+    const applyRgb = (persist) => {
+      const v = readRgb();
+      if (v === null) return;
       settings[kind] = v;
+      preview.style.background = v;
+      custom.style.background = v;
       highlightAll();
       applySettings();
-      saveSettings();
-      syncHexInputs();
+      if (persist) saveSettings();
+    };
+    [rInp, gInp, bInp].forEach((inp) => {
+      inp.addEventListener('input', () => applyRgb(false));
+      inp.addEventListener('change', () => { if (readRgb() === null) syncColorUI(); else applyRgb(true); });
     });
-    hexInputs[kind] = hex;
-    const right = document.createElement('div');
-    right.style.cssText = 'display:flex;align-items:center;gap:6px;';
-    right.append(strip, hex);
-    row.append(name, right);
-    return row;
+    rgbRow.append(preview, rInp.parentElement, gInp.parentElement, bInp.parentElement);
+    rgbEditors[kind] = { row: rgbRow, preview, r: rInp, g: gInp, b: bInp };
+    frag.append(rgbRow);
+
+    custom.addEventListener('click', () => {
+      const open = rgbRow.style.display !== 'flex';
+      closeRgbEditors();
+      if (open) {
+        syncColorUI();
+        rgbRow.style.display = 'flex';
+      }
+    });
+
+    return frag;
   };
   settingsPanel.append(swatchRow('inputText', 'ink', INK_PRESETS), swatchRow('answerText', 'accent', ACCENT_PRESETS), swatchRow('bgColor', 'bg', BG_PRESETS), swatchRow('btnColor', 'btn', BTN_PRESETS));
 
@@ -278,17 +343,20 @@ function injectControls() {
   const settingsBtn = document.getElementById('f-settings');
   const highlightAll = () => {
     settingsPanel.querySelectorAll('[data-kind]').forEach((sw) => {
-      sw.style.borderColor = sw.dataset.color === settings[sw.dataset.kind] ? '#fff' : 'transparent';
+      const active = sw.dataset.custom === '1'
+        ? !PRESETS[sw.dataset.kind].includes(settings[sw.dataset.kind])
+        : sw.dataset.color === settings[sw.dataset.kind];
+      sw.style.borderColor = active ? '#fff' : 'transparent';
     });
   };
   const syncInputs = () => {
     shadowInput.checked = settings.shadow;
     opacitySlider.value = String(Math.round(settings.bgOpacity * 100));
     highlightAll();
-    syncHexInputs();
+    syncColorUI();
   };
 
-  const closeSettings = () => { settingsPanel.style.display = 'none'; settingsBtn.style.color = 'rgba(205,222,255,0.6)'; };
+  const closeSettings = () => { settingsPanel.style.display = 'none'; settingsBtn.style.color = 'rgba(205,222,255,0.6)'; closeRgbEditors(); };
   // The settings channel is minimal-only: hide its button in full mode, and
   // close an open panel when switching away from minimal.
   onMinimalSettings = (on) => {
@@ -308,7 +376,7 @@ function injectControls() {
     highlightAll();
     applySettings();
     saveSettings();
-    syncHexInputs();
+    syncColorUI();
   });
   shadowInput.addEventListener('change', () => { settings.shadow = shadowInput.checked; applySettings(); saveSettings(); });
   opacitySlider.addEventListener('input', () => { settings.bgOpacity = Number(opacitySlider.value) / 100; applySettings(); saveSettings(); });
