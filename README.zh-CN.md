@@ -8,15 +8,28 @@
 
 前置条件：`dsh` 在 PATH 上、Node.js ≥ 18、`pnpm`、`git`。
 
+**1. 安装 bundle：**
+
 ```powershell
 dsh plugin --profile float add github:Zara-Siwei/dsh-float
 ```
 
-然后把 `~/.dsh/profiles/float/package.json` 的 `dsh.profile.bundles` 设为：
+**2. 补上它的 `dsh-web-app` 底座**——dsh 没有 bundle 自动依赖，把下面这段粘贴到 PowerShell 里跑：
 
-```json
-["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@zaralinux/dsh-float"]
+```powershell
+$p = "$HOME\.dsh\profiles\float\package.json"
+$j = Get-Content $p -Raw | ConvertFrom-Json
+$b = [System.Collections.Generic.List[string]]@($j.dsh.profile.bundles)
+if (-not $b.Contains('@deepseek-ai/dsh-web-app')) {
+  $i = $b.IndexOf('@zaralinux/dsh-float')
+  if ($i -lt 0) { $i = $b.Count }
+  $b.Insert($i, '@deepseek-ai/dsh-web-app')
+  $j.dsh.profile.bundles = $b.ToArray()
+  [System.IO.File]::WriteAllText($p, ($j | ConvertTo-Json -Depth 20), (New-Object System.Text.UTF8Encoding($false)))
+}
 ```
+
+等价的手动改法：打开 `~/.dsh/profiles/float/package.json`，在 `dsh.profile.bundles` 里把 `"@deepseek-ai/dsh-web-app",` 插到 `"@deepseek-ai/dsh-base",` 和 `"@zaralinux/dsh-float",` 之间。
 
 ## 使用
 

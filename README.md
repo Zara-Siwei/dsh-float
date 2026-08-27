@@ -8,15 +8,28 @@ A dsh bundle that runs the DeepSeek Harness Web UI in a borderless, translucent 
 
 Prerequisites: the `dsh` CLI on `PATH`, Node.js ≥ 18, `pnpm`, `git`.
 
+**1. Install the bundle:**
+
 ```powershell
 dsh plugin --profile float add github:Zara-Siwei/dsh-float
 ```
 
-Then set `~/.dsh/profiles/float/package.json` → `dsh.profile.bundles` to:
+**2. Add its `dsh-web-app` base** — dsh has no automatic bundle dependencies, so paste this in PowerShell:
 
-```json
-["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@zaralinux/dsh-float"]
+```powershell
+$p = "$HOME\.dsh\profiles\float\package.json"
+$j = Get-Content $p -Raw | ConvertFrom-Json
+$b = [System.Collections.Generic.List[string]]@($j.dsh.profile.bundles)
+if (-not $b.Contains('@deepseek-ai/dsh-web-app')) {
+  $i = $b.IndexOf('@zaralinux/dsh-float')
+  if ($i -lt 0) { $i = $b.Count }
+  $b.Insert($i, '@deepseek-ai/dsh-web-app')
+  $j.dsh.profile.bundles = $b.ToArray()
+  [System.IO.File]::WriteAllText($p, ($j | ConvertTo-Json -Depth 20), (New-Object System.Text.UTF8Encoding($false)))
+}
 ```
+
+Equivalent manual edit: open `~/.dsh/profiles/float/package.json` and insert `"@deepseek-ai/dsh-web-app",` between `"@deepseek-ai/dsh-base",` and `"@zaralinux/dsh-float",` inside `dsh.profile.bundles`.
 
 ## Usage
 
