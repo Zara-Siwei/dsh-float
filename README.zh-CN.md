@@ -37,3 +37,12 @@ dsh plugin --profile web remove @zaralinux/dsh-float
 ```
 
 之后 `dsh --profile web` 恢复为正常的浏览器界面。
+
+## 故障排查
+
+**`Electron failed to install correctly` / `fetch failed`** —— electron 二进制下载被墙了。用镜像重下（在 `~/.dsh/profiles/web` 目录下跑）：
+
+```powershell
+$env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
+node node_modules\electron\install.js
+```
