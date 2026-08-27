@@ -190,13 +190,25 @@ function injectControls() {
   };
 
   const settingsPanel = document.createElement('div');
-  settingsPanel.style.cssText = 'position:fixed;top:38px;right:10px;z-index:2147483647;display:none;flex-direction:column;gap:10px;padding:12px;border-radius:12px;background:linear-gradient(180deg,rgba(32,32,38,0.97),rgba(11,11,14,0.985));color:#eaf2ff;font-family:var(--dsw-font-family,monospace);font-size:13px;border:1px solid rgba(255,255,255,0.09);box-shadow:inset 0 1px 0 rgba(255,255,255,0.07),0 10px 32px rgba(0,0,0,0.6);min-width:210px;cursor:default;-webkit-app-region:no-drag;';
+  settingsPanel.style.cssText = 'position:fixed;top:38px;right:10px;z-index:2147483647;display:none;flex-direction:column;gap:10px;padding:12px;border-radius:12px;background:linear-gradient(180deg,rgba(32,32,38,0.97),rgba(11,11,14,0.985));color:#eaf2ff;font-family:var(--dsw-font-family,monospace);font-size:13px;border:1px solid rgba(255,255,255,0.09);box-shadow:inset 0 1px 0 rgba(255,255,255,0.07),0 10px 32px rgba(0,0,0,0.6);min-width:320px;cursor:default;-webkit-app-region:no-drag;';
+
+  // Compact hex field per color row: a stable cross-platform replacement for
+  // the native <input type=color> picker (broken on Windows, worse on Linux).
+  const hexInputs = {};
+  const normalizeHex = (raw) => {
+    const v = String(raw || '').trim().replace(/^#/, '');
+    return /^[0-9a-fA-F]{6}$/.test(v) ? '#' + v.toLowerCase() : null;
+  };
+  const syncHexInputs = () => { for (const k in hexInputs) hexInputs[k].value = settings[k]; };
+  const hexStyle = document.createElement('style');
+  hexStyle.textContent = '.f-hex{box-sizing:border-box;width:64px;height:20px;padding:0 6px;border:1px solid rgba(255,255,255,0.12);border-radius:6px;background:rgba(255,255,255,0.06);color:rgba(205,222,255,0.85);font-family:inherit;font-size:11px;line-height:18px;outline:none;transition:border-color .15s,background .15s}.f-hex:hover{border-color:rgba(255,255,255,0.22)}.f-hex:focus{border-color:rgba(94,233,160,0.6);background:rgba(255,255,255,0.09)}';
+  document.head.appendChild(hexStyle);
 
   const swatchRow = (key, kind, presets) => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
     const name = document.createElement('span');
-    name.style.cssText = 'line-height:18px;';
+    name.style.cssText = 'line-height:18px;white-space:nowrap;';
     regLabel(name, key);
     const strip = document.createElement('div');
     strip.style.cssText = 'display:flex;align-items:center;gap:4px;';
@@ -209,7 +221,26 @@ function injectControls() {
       sw.style.cssText = 'box-sizing:border-box;width:18px;height:18px;border-radius:50%;border:2px solid transparent;background:' + color + ';cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(255,255,255,0.15);';
       strip.appendChild(sw);
     });
-    row.append(name, strip);
+    const hex = document.createElement('input');
+    hex.type = 'text';
+    hex.className = 'f-hex';
+    hex.spellcheck = false;
+    hex.autocomplete = 'off';
+    hex.value = settings[kind];
+    hex.addEventListener('change', () => {
+      const v = normalizeHex(hex.value);
+      if (v === null) { syncHexInputs(); return; }
+      settings[kind] = v;
+      highlightAll();
+      applySettings();
+      saveSettings();
+      syncHexInputs();
+    });
+    hexInputs[kind] = hex;
+    const right = document.createElement('div');
+    right.style.cssText = 'display:flex;align-items:center;gap:6px;';
+    right.append(strip, hex);
+    row.append(name, right);
     return row;
   };
   settingsPanel.append(swatchRow('inputText', 'ink', INK_PRESETS), swatchRow('answerText', 'accent', ACCENT_PRESETS), swatchRow('bgColor', 'bg', BG_PRESETS), swatchRow('btnColor', 'btn', BTN_PRESETS));
@@ -254,6 +285,7 @@ function injectControls() {
     shadowInput.checked = settings.shadow;
     opacitySlider.value = String(Math.round(settings.bgOpacity * 100));
     highlightAll();
+    syncHexInputs();
   };
 
   const closeSettings = () => { settingsPanel.style.display = 'none'; settingsBtn.style.color = 'rgba(205,222,255,0.6)'; };
@@ -276,6 +308,7 @@ function injectControls() {
     highlightAll();
     applySettings();
     saveSettings();
+    syncHexInputs();
   });
   shadowInput.addEventListener('change', () => { settings.shadow = shadowInput.checked; applySettings(); saveSettings(); });
   opacitySlider.addEventListener('input', () => { settings.bgOpacity = Number(opacitySlider.value) / 100; applySettings(); saveSettings(); });
