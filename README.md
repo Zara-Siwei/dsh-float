@@ -40,9 +40,10 @@ dsh plugin --profile web remove dsh-float
 
 ## Troubleshooting
 
-**`Electron failed to install correctly` / `fetch failed`** — the Electron binary download failed (e.g. when the network cannot reach the download host). Use a mirror (run inside `~/.dsh/profiles/web`):
+**`Electron failed to install correctly` / `fetch failed`** — the Electron binary download failed (e.g. when the network cannot reach the download host). Use a mirror — from inside the profile directory:
 
 ```powershell
+cd ~\.dsh\profiles\web
 $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
 node node_modules\electron\install.js
 ```

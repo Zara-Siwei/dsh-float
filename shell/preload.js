@@ -2,11 +2,15 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
-/* Default to the minimal ("terminal TUI") look from the very first paint, so
-   the SPA never flashes its full chrome before the skin applies. */
+/* Load persisted UI state (minimal mode + appearance) once, synchronously, so
+   the very first paint already matches the last-used mode — no flash. */
+let savedSettings = {};
+try { savedSettings = ipcRenderer.sendSync('settings:load-sync') || {}; } catch {}
+const initialMinimal = process.env.DSH_FLOAT_FULL === '1' ? false : (savedSettings.minimal !== false);
+
 try {
   if (document.documentElement) {
-    document.documentElement.setAttribute('data-float-minimal', '');
+    if (initialMinimal) document.documentElement.setAttribute('data-float-minimal', '');
   }
 } catch {}
 
@@ -53,7 +57,7 @@ function injectControls() {
   // Halo breathing light: a steady green core + a soft glow ring that expands
   // and fades around it (the ::after pseudo-element, animated via keyframes).
   const dotStyle = document.createElement('style');
-  dotStyle.textContent = '.f-float-dot{position:relative;width:8px;height:8px;border-radius:50%;background:#6ee7b7;box-shadow:0 0 6px 2px rgba(94,233,160,.55)}.f-float-dot::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(94,233,160,.6) 0%,rgba(94,233,160,0) 70%);animation:f-float-halo 2.2s ease-in-out infinite}@keyframes f-float-halo{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(3);opacity:1}}';
+  dotStyle.textContent = '.f-float-dot{position:relative;width:8px;height:8px;border-radius:50%;background:var(--f-btn,#5ee9a0);box-shadow:0 0 6px 2px color-mix(in srgb,var(--f-btn,#5ee9a0) 55%,transparent)}.f-float-dot::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--f-btn,#5ee9a0) 60%,transparent) 0%,transparent 70%);animation:f-float-halo 2.2s ease-in-out infinite}@keyframes f-float-halo{0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(3);opacity:1}}';
   document.head.appendChild(dotStyle);
 
   bar.append(menu, dot);
@@ -66,8 +70,8 @@ function injectControls() {
   // web reflects on <html lang> (zh -> "zh-CN", en -> "en"). Registering a
   // label applies it immediately and re-applies it whenever lang changes.
   const I18N = {
-    zh: { minimal: '极简模式', toggleMinimal: '切换极简模式', settings: '设置', pin: '置顶', minimize: '最小化', maximize: '最大化', close: '关闭', inputText: '输入文字', answerText: '回答文字', bgColor: '背景颜色', opacity: '透明度', shadow: '文字阴影', reset: '恢复默认', custom: '自定义' },
-    en: { minimal: 'Minimal mode', toggleMinimal: 'Toggle minimal mode', settings: 'Settings', pin: 'Always on top', minimize: 'Minimize', maximize: 'Maximize', close: 'Close', inputText: 'Input text', answerText: 'Answer text', bgColor: 'Background', opacity: 'Opacity', shadow: 'Text shadow', reset: 'Reset', custom: 'Custom' },
+    zh: { minimal: '极简模式', toggleMinimal: '切换极简模式', settings: '设置', pin: '置顶', minimize: '最小化', maximize: '最大化', restore: '还原', close: '关闭', inputText: '输入文字', answerText: '回答文字', bgColor: '背景颜色', btnColor: '按钮颜色', opacity: '透明度', shadow: '文字阴影', reset: '恢复默认', custom: '自定义' },
+    en: { minimal: 'Minimal mode', toggleMinimal: 'Toggle minimal mode', settings: 'Settings', pin: 'Always on top', minimize: 'Minimize', maximize: 'Maximize', restore: 'Restore down', close: 'Close', inputText: 'Input text', answerText: 'Answer text', bgColor: 'Background', btnColor: 'Button color', opacity: 'Opacity', shadow: 'Text shadow', reset: 'Reset', custom: 'Custom' },
   };
   const currentLang = () => ((document.documentElement.lang || '').toLowerCase().startsWith('zh') ? 'zh' : 'en');
   const labels = [];
@@ -81,12 +85,27 @@ function injectControls() {
     labels.push({ el, key, attr });
     setLabel(el, key, attr);
   };
-  const applyLabels = () => { for (const { el, key, attr } of labels) setLabel(el, key, attr); };
-  new MutationObserver(applyLabels).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
-
   const minimal = document.getElementById('f-minimal');
   const pin = document.getElementById('f-pin');
   const close = document.getElementById('f-close');
+  const maxBtn = document.getElementById('f-max');
+  let isMaximized = false;
+  let pinOn = false;
+
+  // Maximize / restore is one toggle button: □ = maximize, ❐ = restore down.
+  const updateMaxButton = (on) => {
+    isMaximized = on;
+    maxBtn.textContent = on ? '❐' : '□';
+    const label = I18N[currentLang()][on ? 'restore' : 'maximize'];
+    maxBtn.setAttribute('title', label);
+    maxBtn.setAttribute('aria-label', label);
+  };
+
+  const applyLabels = () => {
+    for (const { el, key, attr } of labels) setLabel(el, key, attr);
+    updateMaxButton(isMaximized);
+  };
+  new MutationObserver(applyLabels).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
 
   regLabel(minimal, 'minimal', 'title');
   regLabel(minimal, 'toggleMinimal', 'aria');
@@ -94,8 +113,6 @@ function injectControls() {
   regLabel(document.getElementById('f-settings'), 'settings', 'aria');
   regLabel(pin, 'pin', 'title');
   regLabel(document.getElementById('f-min'), 'minimize', 'title');
-  regLabel(document.getElementById('f-max'), 'maximize', 'title');
-  regLabel(document.getElementById('f-max'), 'maximize', 'aria');
   regLabel(close, 'close', 'title');
 
   let onMinimalSettings = () => {}; // assigned by the settings block below
@@ -103,26 +120,29 @@ function injectControls() {
   const setMinimal = (on) => {
     if (on) document.documentElement.setAttribute('data-float-minimal', '');
     else document.documentElement.removeAttribute('data-float-minimal');
-    minimal.style.color = on ? '#6ee7b7' : 'rgba(205,222,255,0.6)';
+    minimal.style.color = on ? settings.btn : 'rgba(205,222,255,0.6)';
     onMinimalSettings(on);
     onMinimalChanged();
+    saveSettings();
   };
   minimal.addEventListener('click', () => {
     setMinimal(!document.documentElement.hasAttribute('data-float-minimal'));
   });
 
-  ipcRenderer.invoke('win:is-top').then((on) => { if (on) pin.style.color = '#6ee7b7'; });
+  ipcRenderer.invoke('win:is-top').then((on) => { pinOn = on; if (on) pin.style.color = settings.btn; });
   pin.addEventListener('click', async () => {
-    const on = await ipcRenderer.invoke('win:toggle-top');
-    pin.style.color = on ? '#6ee7b7' : 'rgba(205,222,255,0.6)';
+    pinOn = await ipcRenderer.invoke('win:toggle-top');
+    pin.style.color = pinOn ? settings.btn : 'rgba(205,222,255,0.6)';
   });
   document.getElementById('f-min').addEventListener('click', () => ipcRenderer.send('win:minimize'));
-  document.getElementById('f-max').addEventListener('click', () => ipcRenderer.send('win:toggle-max'));
+  maxBtn.addEventListener('click', () => ipcRenderer.send('win:toggle-max'));
+  ipcRenderer.on('win:max-changed', (_e, on) => updateMaxButton(!!on));
+  ipcRenderer.invoke('win:is-maximized').then(updateMaxButton);
   close.addEventListener('click', () => ipcRenderer.send('win:close'));
   close.addEventListener('mouseenter', () => { close.style.background = 'rgba(240,70,70,0.75)'; close.style.color = '#fff'; });
   close.addEventListener('mouseleave', () => { close.style.background = 'rgba(255,255,255,0.07)'; close.style.color = 'rgba(205,222,255,0.6)'; });
 
-  // Settings: text colors + background + shadow, persisted in localStorage.
+  // Settings: text colors + background + shadow, persisted to userData via IPC.
   // Colors are preset swatches (one click applies) plus a per-row "custom"
   // swatch that opens the native picker. The values map onto the `--f-ink` /
   // `--f-accent` / `--f-bg` / `--f-shadow` custom properties skin.css reads.
@@ -131,12 +151,20 @@ function injectControls() {
   const DEFAULT_BG = '#0d1430';
   const DEFAULT_BG_OPACITY = 0; // 0 = fully transparent (the default)
   const DEFAULT_SHADOW = '0 1px 2px rgba(0, 0, 0, 0.55)';
+  const DEFAULT_BTN = '#5ee9a0'; // active-state button color (send/dot/pin/settings/minimal)
   const INK_PRESETS = ['#eaf2ff', '#f8fafc', '#cbd5e1', '#0f1115', '#334155', '#fef3c7'];
   const ACCENT_PRESETS = ['#5ee9a0', '#6ee7b7', '#22d3ee', '#93c5fd', '#c4b5fd', '#f87171'];
   const BG_PRESETS = ['#0d1430', '#111827', '#0f172a', '#1e293b', '#000000', '#14532d'];
-  const PRESETS = { ink: INK_PRESETS, accent: ACCENT_PRESETS, bg: BG_PRESETS };
-  let settings = { ink: DEFAULT_INK, accent: DEFAULT_ACCENT, bg: DEFAULT_BG, bgOpacity: DEFAULT_BG_OPACITY, shadow: true };
-  try { settings = { ...settings, ...JSON.parse(localStorage.getItem('float.settings') || '{}') }; } catch {}
+  const BTN_PRESETS = ['#5ee9a0', '#6ee7b7', '#22d3ee', '#93c5fd', '#c4b5fd', '#f87171'];
+  const PRESETS = { ink: INK_PRESETS, accent: ACCENT_PRESETS, bg: BG_PRESETS, btn: BTN_PRESETS };
+  let settings = {
+    ink: savedSettings.ink ?? DEFAULT_INK,
+    accent: savedSettings.accent ?? DEFAULT_ACCENT,
+    bg: savedSettings.bg ?? DEFAULT_BG,
+    bgOpacity: savedSettings.bgOpacity ?? DEFAULT_BG_OPACITY,
+    shadow: savedSettings.shadow ?? true,
+    btn: savedSettings.btn ?? DEFAULT_BTN,
+  };
 
   const hexToRgb = (hex) => {
     const n = parseInt(hex.slice(1), 16);
@@ -147,11 +175,18 @@ function injectControls() {
     document.documentElement.style.setProperty('--f-accent', settings.accent);
     document.documentElement.style.setProperty('--f-bg', 'rgba(' + hexToRgb(settings.bg) + ',' + settings.bgOpacity + ')');
     document.documentElement.style.setProperty('--f-shadow', settings.shadow ? DEFAULT_SHADOW : 'none');
+    document.documentElement.style.setProperty('--f-btn', settings.btn);
+    // Re-tint any currently-active controls after a button-color change.
+    if (document.documentElement.hasAttribute('data-float-minimal')) minimal.style.color = settings.btn;
+    if (pinOn) pin.style.color = settings.btn;
+    if (settingsPanel.style.display === 'flex') settingsBtn.style.color = settings.btn;
   };
-  const saveSettings = () => { try { localStorage.setItem('float.settings', JSON.stringify(settings)); } catch {} };
+  const saveSettings = () => {
+    try { ipcRenderer.send('settings:save', { minimal: document.documentElement.hasAttribute('data-float-minimal'), ...settings }); } catch {}
+  };
 
   const settingsPanel = document.createElement('div');
-  settingsPanel.style.cssText = 'position:fixed;top:38px;right:10px;z-index:2147483647;display:none;flex-direction:column;gap:10px;padding:12px;border-radius:10px;background:rgba(13,20,48,0.92);color:#eaf2ff;font-family:var(--dsw-font-family,monospace);font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,0.45);min-width:210px;cursor:default;-webkit-app-region:no-drag;';
+  settingsPanel.style.cssText = 'position:fixed;top:38px;right:10px;z-index:2147483647;display:none;flex-direction:column;gap:10px;padding:12px;border-radius:12px;background:linear-gradient(180deg,rgba(32,32,38,0.97),rgba(11,11,14,0.985));color:#eaf2ff;font-family:var(--dsw-font-family,monospace);font-size:13px;border:1px solid rgba(255,255,255,0.09);box-shadow:inset 0 1px 0 rgba(255,255,255,0.07),0 10px 32px rgba(0,0,0,0.6);min-width:210px;cursor:default;-webkit-app-region:no-drag;';
 
   const swatchRow = (key, kind, presets) => {
     const row = document.createElement('div');
@@ -191,7 +226,7 @@ function injectControls() {
     row.append(name, strip);
     return row;
   };
-  settingsPanel.append(swatchRow('inputText', 'ink', INK_PRESETS), swatchRow('answerText', 'accent', ACCENT_PRESETS), swatchRow('bgColor', 'bg', BG_PRESETS));
+  settingsPanel.append(swatchRow('inputText', 'ink', INK_PRESETS), swatchRow('answerText', 'accent', ACCENT_PRESETS), swatchRow('bgColor', 'bg', BG_PRESETS), swatchRow('btnColor', 'btn', BTN_PRESETS));
 
   const opacityRow = document.createElement('div');
   opacityRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
@@ -249,7 +284,7 @@ function injectControls() {
     if (settingsPanel.style.display === 'flex') { closeSettings(); return; }
     syncInputs();
     settingsPanel.style.display = 'flex';
-    settingsBtn.style.color = '#6ee7b7';
+    settingsBtn.style.color = settings.btn;
   });
   settingsPanel.addEventListener('click', (e) => {
     const sw = e.target.closest('button[data-kind]');
@@ -262,7 +297,7 @@ function injectControls() {
   shadowInput.addEventListener('change', () => { settings.shadow = shadowInput.checked; applySettings(); saveSettings(); });
   opacitySlider.addEventListener('input', () => { settings.bgOpacity = Number(opacitySlider.value) / 100; applySettings(); saveSettings(); });
   resetBtn.addEventListener('click', () => {
-    settings = { ink: DEFAULT_INK, accent: DEFAULT_ACCENT, bg: DEFAULT_BG, bgOpacity: DEFAULT_BG_OPACITY, shadow: true };
+    settings = { ink: DEFAULT_INK, accent: DEFAULT_ACCENT, bg: DEFAULT_BG, bgOpacity: DEFAULT_BG_OPACITY, shadow: true, btn: DEFAULT_BTN };
     syncInputs();
     applySettings();
     saveSettings();
@@ -275,8 +310,8 @@ function injectControls() {
   syncInputs();
   applySettings();
 
-  // Default: minimal ON (set DSH_FLOAT_FULL=1 to start in full mode instead).
-  setMinimal(process.env.DSH_FLOAT_FULL !== '1');
+  // Start in the last-used mode (persisted), defaulting to minimal ON.
+  setMinimal(initialMinimal);
 }
 
 /* Show the session's context occupancy as plain `used/contextWindow` text

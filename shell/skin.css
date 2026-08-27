@@ -14,6 +14,7 @@
   --f-accent: #5ee9a0;                       /* assistant answer text color */
   --f-bg: transparent;                       /* minimal-mode root background */
   --f-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); /* floating text shadow */
+  --f-btn: #5ee9a0;                          /* active-state button color */
 }
 
 /* ---- transparency (minimal mode only: the terminal floats over the desktop) ---- */
@@ -181,8 +182,15 @@ html[data-float-minimal] [data-input-scroll] {
 html[data-float-minimal] [data-composer-card] > div:has(> [class*='trailing']) {
   position: absolute !important;
   right: 0 !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
+  /* Vertical centering WITHOUT transform: a transform here would become the
+     containing block for the button's position:fixed tooltip bubble, breaking
+     its viewport positioning and thrashing the compositor near the scrollbar
+     on hover (the send button's background transition). */
+  top: 0 !important;
+  bottom: 0 !important;
+  height: var(--f-send-btn) !important;
+  margin-top: auto !important;
+  margin-bottom: auto !important;
   width: var(--f-send-btn) !important;
   justify-content: flex-end !important;
   padding: 0 !important;
@@ -230,19 +238,19 @@ html[data-float-minimal] button[aria-label='Stop generating'] {
 }
 html[data-float-minimal] button[aria-label='发送消息'],
 html[data-float-minimal] button[aria-label='Send message'] {
-  background: rgba(94, 233, 160, 0.12) !important;
-  border: 1px solid rgba(94, 233, 160, 0.45) !important;
-  color: #5ee9a0 !important;
+  background: color-mix(in srgb, var(--f-btn) 12%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--f-btn) 45%, transparent) !important;
+  color: var(--f-btn) !important;
 }
 html[data-float-minimal] button[aria-label='发送消息']:hover:not(:disabled),
 html[data-float-minimal] button[aria-label='Send message']:hover:not(:disabled) {
-  background: rgba(94, 233, 160, 0.22) !important;
+  background: color-mix(in srgb, var(--f-btn) 22%, transparent) !important;
 }
 html[data-float-minimal] button[aria-label='发送消息']:disabled,
 html[data-float-minimal] button[aria-label='Send message']:disabled {
   opacity: 0.35 !important;
-  color: rgba(94, 233, 160, 0.5) !important;
-  border-color: rgba(94, 233, 160, 0.2) !important;
+  color: color-mix(in srgb, var(--f-btn) 50%, transparent) !important;
+  border-color: color-mix(in srgb, var(--f-btn) 20%, transparent) !important;
 }
 html[data-float-minimal] button[aria-label='停止生成'],
 html[data-float-minimal] button[aria-label='Stop generating'] {
@@ -253,6 +261,20 @@ html[data-float-minimal] button[aria-label='Stop generating'] {
 html[data-float-minimal] button[aria-label='停止生成']:hover,
 html[data-float-minimal] button[aria-label='Stop generating']:hover {
   background: rgba(248, 113, 113, 0.24) !important;
+}
+
+/* Scroll-to-bottom button: dim it and align its right edge with the send
+   button. The chat scroller is inset one composer-side-clearance (16px) more
+   than the input card, so nudge the slot right by that clearance. */
+html[data-float-minimal] [class*='toBottomSlot'] {
+  padding-right: 0 !important;
+  margin-right: calc(-1 * var(--dsh-composer-side-clearance, 16px)) !important;
+}
+html[data-float-minimal] button[class*='toBottom'] {
+  opacity: 0.45 !important;
+}
+html[data-float-minimal] button[class*='toBottom']:hover {
+  opacity: 0.85 !important;
 }
 
 /* ---- chat lines: left-align everything, drop the user bubble (TUI style).

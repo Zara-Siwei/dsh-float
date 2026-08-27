@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -10,7 +10,13 @@ if (process.platform === 'linux' && !process.env.ELECTRON_OZONE_PLATFORM_HINT) {
 }
 app.commandLine.appendSwitch('no-sandbox');
 
+/* Stable userData dir for persisted settings (independent of the shell's
+   package.json name, which lives inside node_modules and can change). */
+app.setName('dsh-float');
+
 let win = null;
+let savedBounds = null; // pre-maximize bounds, for a deterministic restore
+let maximized = false;  // transparent frameless windows report isMaximized()/events unreliably
 
 /* Read the skin once and inject it at `dom-ready` — before the SPA's first
    content paint — so the window's first visible frame is already minimal. */
@@ -241,6 +247,17 @@ function createWindow() {
     }
   });
 
+  // Native maximize/restore can still happen via Aero Snap; resync our manual
+  // state (and best-effort capture the normal bounds) so the button stays true.
+  win.on('maximize', () => {
+    maximized = true;
+    if (!savedBounds) { try { savedBounds = win.getNormalBounds(); } catch {} }
+    win.webContents.send('win:max-changed', true);
+  });
+  win.on('unmaximize', () => {
+    maximized = false;
+    win.webContents.send('win:max-changed', false);
+  });
   win.on('closed', () => { win = null; });
 }
 
@@ -249,8 +266,17 @@ ipcMain.on('win:minimize', () => { if (win) win.minimize(); });
 ipcMain.on('win:close', () => { if (win) win.close(); });
 ipcMain.on('win:toggle-max', () => {
   if (!win) return;
-  if (win.isMaximized()) win.unmaximize();
-  else win.maximize();
+  if (maximized) {
+    if (savedBounds) win.setBounds(savedBounds);
+    else win.unmaximize();
+    maximized = false;
+  } else {
+    savedBounds = win.getBounds();
+    const { workArea } = screen.getDisplayMatching(savedBounds);
+    win.setBounds(workArea);
+    maximized = true;
+  }
+  win.webContents.send('win:max-changed', maximized);
 });
 ipcMain.handle('win:toggle-top', () => {
   if (!win) return false;
@@ -259,6 +285,26 @@ ipcMain.handle('win:toggle-top', () => {
   return next;
 });
 ipcMain.handle('win:is-top', () => !!(win && win.isAlwaysOnTop()));
+ipcMain.handle('win:is-maximized', () => maximized);
+
+/* ---- persisted UI state (minimal mode + appearance) ----
+   Stored under userData (stable across launches, unlike the SPA's random-port
+   origin), read synchronously at preload time so the first paint already
+   matches the last-used mode. */
+const DEFAULT_SETTINGS = { minimal: true, ink: '#eaf2ff', accent: '#5ee9a0', bg: '#0d1430', bgOpacity: 0, shadow: true };
+const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
+const loadSettings = () => {
+  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) }; }
+  catch { return { ...DEFAULT_SETTINGS }; }
+};
+const saveSettings = (next) => {
+  try {
+    fs.mkdirSync(app.getPath('userData'), { recursive: true });
+    fs.writeFileSync(settingsFile(), JSON.stringify({ ...DEFAULT_SETTINGS, ...next }));
+  } catch (e) { console.error('dsh-float: settings save failed:', e.message); }
+};
+ipcMain.on('settings:load-sync', (e) => { e.returnValue = loadSettings(); });
+ipcMain.on('settings:save', (e, next) => { saveSettings(next); });
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => {

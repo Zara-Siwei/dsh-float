@@ -40,9 +40,10 @@ dsh plugin --profile web remove dsh-float
 
 ## 故障排查
 
-**`Electron failed to install correctly` / `fetch failed`** —— electron 二进制下载失败（比如网络访问不了默认下载源）。可改用镜像重下（在 `~/.dsh/profiles/web` 目录下跑）：
+**`Electron failed to install correctly` / `fetch failed`** —— electron 二进制下载失败（比如网络访问不了默认下载源）。可改用镜像重下（先 `cd` 进 profile 目录）：
 
 ```powershell
+cd ~\.dsh\profiles\web
 $env:ELECTRON_MIRROR = 'https://npmmirror.com/mirrors/electron/'
 node node_modules\electron\install.js
 ```
