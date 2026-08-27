@@ -224,6 +224,13 @@ html[data-float-minimal] [data-input-mirror] {
   padding-left: 18px !important;
 }
 
+/* Caret follows the input-text color (the textarea glyphs are transparent and
+   drawn by a backdrop layer, so its caret-color would otherwise stay the
+   default business green regardless of --f-ink). */
+html[data-float-minimal] [data-composer-card] textarea {
+  caret-color: var(--f-ink) !important;
+}
+
 /* Send button: premium-green rounded square. Stop button: same shape/slot,
    warm-red to signal interruption. Both keep a glassy, transparent feel. */
 html[data-float-minimal] button[aria-label='发送消息'],
